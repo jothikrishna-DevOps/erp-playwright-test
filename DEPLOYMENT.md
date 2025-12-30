@@ -2,6 +2,8 @@
 
 Complete guide for deploying the Playwright Test Platform to EC2.
 
+**For a detailed, step-by-step guide with all tested steps, see [EC2_DEPLOYMENT_GUIDE.md](./EC2_DEPLOYMENT_GUIDE.md)**
+
 ## Prerequisites
 
 - EC2 instance running (Amazon Linux 2, Ubuntu, or similar)
