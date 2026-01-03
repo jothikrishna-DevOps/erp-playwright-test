@@ -9,7 +9,8 @@ export default function RecordPage() {
   const [formData, setFormData] = useState({
     name: '',
     url: '',
-    browser: 'chromium' as BrowserType
+    browser: 'chromium' as BrowserType,
+    description: ''
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -116,6 +117,20 @@ export default function RecordPage() {
                 <option value="firefox">Firefox</option>
                 <option value="webkit">WebKit</option>
               </select>
+            </div>
+
+            <div>
+              <label htmlFor="description" className="block text-sm font-medium text-earth-700 mb-2">
+                Description <span className="text-earth-400 font-normal">(optional)</span>
+              </label>
+              <textarea
+                id="description"
+                rows={4}
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className="w-full px-4 py-2 border border-earth-300 rounded-lg focus:ring-2 focus:ring-sage-500 focus:border-sage-500 outline-none transition-colors resize-none"
+                placeholder="Describe what this test does..."
+              />
             </div>
 
             <div className="pt-4">

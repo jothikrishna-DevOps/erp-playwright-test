@@ -73,7 +73,7 @@ export default function Dashboard() {
         </div>
 
         {/* Actions */}
-        <div className="mb-8">
+        <div className="mb-8 flex items-center justify-between">
           <Link
             href="/record"
             className="inline-flex items-center px-6 py-3 bg-sage-600 text-white rounded-lg hover:bg-sage-700 transition-colors shadow-sm"
@@ -83,6 +83,18 @@ export default function Dashboard() {
             </svg>
             Record New Test
           </Link>
+          
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-earth-600">Group by:</label>
+            <select
+              value={groupBy}
+              onChange={(e) => setGroupBy(e.target.value as 'none' | 'date')}
+              className="px-3 py-1.5 border border-earth-300 rounded-lg focus:ring-2 focus:ring-sage-500 focus:border-sage-500 outline-none text-sm"
+            >
+              <option value="date">Date</option>
+              <option value="none">None</option>
+            </select>
+          </div>
         </div>
 
         {/* Tests Table */}
@@ -103,6 +115,9 @@ export default function Dashboard() {
                 <tr>
                   <th className="px-6 py-4 text-left text-xs font-medium text-earth-700 uppercase tracking-wider">
                     Test Name
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-earth-700 uppercase tracking-wider">
+                    Description
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-earth-700 uppercase tracking-wider">
                     URL
@@ -126,6 +141,15 @@ export default function Dashboard() {
                   <tr key={test.id} className="hover:bg-earth-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-earth-900">{test.name}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-earth-600 max-w-xs">
+                        {test.description ? (
+                          <span className="line-clamp-2">{test.description}</span>
+                        ) : (
+                          <span className="text-earth-400 italic">No description</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm text-earth-600 truncate max-w-xs">{test.url}</div>

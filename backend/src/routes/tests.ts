@@ -7,6 +7,38 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
+// Helper function to sanitize test name for filesystem
+function sanitizeFileName(name: string): string {
+  // Replace spaces and special characters with hyphens
+  // Remove any characters that aren't alphanumeric, hyphen, or underscore
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')           // Replace spaces with hyphens
+    .replace(/[^a-z0-9\-_]/g, '')   // Remove special characters
+    .replace(/-+/g, '-')             // Replace multiple hyphens with single
+    .replace(/^-|-$/g, '')           // Remove leading/trailing hyphens
+    .substring(0, 100);              // Limit length to 100 characters
+}
+
+// Helper function to get unique folder name (handle duplicates)
+async function getUniqueTestFolder(storagePath: string, testName: string, testId: string): Promise<string> {
+  const sanitizedName = sanitizeFileName(testName);
+  let folderName = sanitizedName;
+  let counter = 1;
+  
+  // Check if folder exists, if so, append counter
+  while (fs.existsSync(path.join(storagePath, 'tests', folderName))) {
+    // Check if it's the same test (by checking if testId matches in a metadata file or DB)
+    const existingPath = path.join(storagePath, 'tests', folderName);
+    // For now, append counter to make it unique
+    folderName = `${sanitizedName}-${counter}`;
+    counter++;
+  }
+  
+  return folderName;
+}
+
 const router = Router();
 
 export function setupTestRoutes(router: Router, storagePath: string) {
@@ -48,7 +80,7 @@ export function setupTestRoutes(router: Router, storagePath: string) {
   // Create new test (initiate recording)
   router.post('/tests/record', async (req: Request, res: Response) => {
     try {
-      const { name, url, browser = 'chromium' }: CreateTestRequest = req.body;
+      const { name, url, browser = 'chromium', description }: CreateTestRequest = req.body;
 
       if (!name || !url) {
         return res.status(400).json({ error: 'Name and URL are required' });
@@ -60,6 +92,7 @@ export function setupTestRoutes(router: Router, storagePath: string) {
         name,
         url,
         browser: browser as any,
+        description: description || undefined,
         createdBy: 'developer', // TODO: Get from auth
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -68,9 +101,9 @@ export function setupTestRoutes(router: Router, storagePath: string) {
       };
 
       await dbRun(
-        `INSERT INTO tests (id, name, url, browser, created_by, status, version)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [testId, name, url, browser, test.createdBy, 'pending', 1]
+        `INSERT INTO tests (id, name, url, browser, description, created_by, status, version)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [testId, name, url, browser, description || null, test.createdBy, 'pending', 1]
       );
 
       // Send record command to connected agents
@@ -151,14 +184,16 @@ export function setupTestRoutes(router: Router, storagePath: string) {
         return res.status(404).json({ error: 'Test not found' });
       }
 
-      // Create test directory
-      const testDir = path.join(storagePath, 'tests', testId);
+      // Create test directory using test name (sanitized) instead of testId
+      const folderName = await getUniqueTestFolder(storagePath, test.name, testId);
+      const testDir = path.join(storagePath, 'tests', folderName);
       if (!fs.existsSync(testDir)) {
         fs.mkdirSync(testDir, { recursive: true });
       }
 
-      // Move uploaded file to storage
-      const targetPath = path.join(testDir, 'test.spec.ts');
+      // Use test name for file name (sanitized)
+      const sanitizedFileName = sanitizeFileName(test.name);
+      const targetPath = path.join(testDir, `${sanitizedFileName}.spec.ts`);
       fs.renameSync(file.path, targetPath);
 
       // Update test record
@@ -190,7 +225,9 @@ export function setupTestRoutes(router: Router, storagePath: string) {
         return res.status(404).json({ error: 'Test file does not exist' });
       }
 
-      res.download(test.filePath, `${test.name}.spec.ts`);
+      // Use sanitized name for download filename
+      const sanitizedFileName = sanitizeFileName(test.name);
+      res.download(test.filePath, `${sanitizedFileName}.spec.ts`);
     } catch (error) {
       console.error('Error downloading test file:', error);
       res.status(500).json({ error: 'Failed to download test file' });
@@ -212,12 +249,12 @@ export function setupTestRoutes(router: Router, storagePath: string) {
       // Delete file if exists
       if (test.filePath && fs.existsSync(test.filePath)) {
         fs.unlinkSync(test.filePath);
-      }
-
-      // Delete test directory
-      const testDir = path.join(storagePath, 'tests', req.params.id);
-      if (fs.existsSync(testDir)) {
-        fs.rmSync(testDir, { recursive: true, force: true });
+        
+        // Delete test directory (extract from filePath)
+        const testDir = path.dirname(test.filePath);
+        if (fs.existsSync(testDir)) {
+          fs.rmSync(testDir, { recursive: true, force: true });
+        }
       }
 
       await dbRun('DELETE FROM tests WHERE id = ?', [req.params.id]);

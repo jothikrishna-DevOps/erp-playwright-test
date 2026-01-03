@@ -17,6 +17,7 @@ export interface Test {
   name: string;
   url: string;
   browser: BrowserType;
+  description?: string;
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
@@ -86,6 +87,7 @@ export interface CreateTestRequest {
   name: string;
   url: string;
   browser?: BrowserType;
+  description?: string;
 }
 
 export interface RunTestRequest {

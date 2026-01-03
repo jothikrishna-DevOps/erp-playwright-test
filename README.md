@@ -70,6 +70,18 @@ npm install
 npm start
 ```
 
+### EC2 Deployment
+
+For complete EC2 deployment instructions, see:
+- **[EC2_DEPLOYMENT_GUIDE.md](./EC2_DEPLOYMENT_GUIDE.md)** - Step-by-step guide with all tested steps
+- [DEPLOYMENT.md](./DEPLOYMENT.md) - General deployment documentation
+
+### Agent Setup
+
+For local agent setup instructions, see:
+- **[AGENT_SETUP_GUIDE.md](./AGENT_SETUP_GUIDE.md)** - Complete agent setup guide
+- [agent/EC2_SETUP.md](./agent/EC2_SETUP.md) - Agent configuration for EC2
+
 ## 📡 Communication Protocol
 
 ### Agent → Backend

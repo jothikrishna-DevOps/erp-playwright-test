@@ -62,6 +62,7 @@ export async function initDatabase(): Promise<void> {
       name TEXT NOT NULL,
       url TEXT NOT NULL,
       browser TEXT NOT NULL DEFAULT 'chromium',
+      description TEXT,
       created_by TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -70,6 +71,13 @@ export async function initDatabase(): Promise<void> {
       version INTEGER NOT NULL DEFAULT 1
     )
   `);
+  
+  // Add description column if it doesn't exist (for existing databases)
+  await dbRun(`
+    ALTER TABLE tests ADD COLUMN description TEXT
+  `).catch(() => {
+    // Column already exists, ignore error
+  });
 
   // Create agents table
   await dbRun(`

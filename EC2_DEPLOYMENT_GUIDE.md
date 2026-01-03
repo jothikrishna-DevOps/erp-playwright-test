@@ -103,16 +103,27 @@ STORAGE_PATH=/opt/playwright-platform/storage
 JWT_SECRET=$(openssl rand -base64 32)
 EOF
 
-# Create frontend environment file
+# Create frontend environment file in SOURCE (before building)
+# This is critical - Next.js bakes NEXT_PUBLIC_* vars at build time
+cd ~/erp-playwright-test
+EC2_DNS="ec2-13-235-76-91.ap-south-1.compute.amazonaws.com"  # Replace with yours
+cat > frontend/.env.production << EOF
+NEXT_PUBLIC_API_URL=http://${EC2_DNS}
+EOF
+
+# Also create in deployment directory (for reference)
 sudo mkdir -p /opt/playwright-platform/frontend
 sudo tee /opt/playwright-platform/frontend/.env.production > /dev/null << EOF
 NEXT_PUBLIC_API_URL=http://${EC2_DNS}
 EOF
 
 # Verify files created
+cat ~/erp-playwright-test/frontend/.env.production
 cat /opt/playwright-platform/backend/.env
 cat /opt/playwright-platform/frontend/.env.production
 ```
+
+**Critical:** The frontend `.env.production` MUST be created in the source directory (`~/erp-playwright-test/frontend/.env.production`) BEFORE running the build. Next.js bakes `NEXT_PUBLIC_*` environment variables at build time. If you create it after building, you must rebuild the frontend.
 
 **Important:** Replace `${EC2_DNS}` with your actual EC2 DNS if the variable wasn't set.
 
@@ -159,7 +170,27 @@ cp -r shared frontend/shared
 ls -la frontend/shared/
 ```
 
-## Step 7: Build and Deploy
+## Step 7: Create Frontend Environment Before Building
+
+**IMPORTANT:** Next.js bakes `NEXT_PUBLIC_*` environment variables at build time. You MUST create the frontend `.env.production` file BEFORE building, or rebuild after creating it.
+
+```bash
+# Go to repository root
+cd ~/erp-playwright-test
+
+# Create frontend .env.production in SOURCE (before building)
+EC2_DNS="ec2-13-235-76-91.ap-south-1.compute.amazonaws.com"  # Replace with yours
+cat > frontend/.env.production << EOF
+NEXT_PUBLIC_API_URL=http://${EC2_DNS}
+EOF
+
+# Verify
+cat frontend/.env.production
+```
+
+**Critical:** If you create the environment file after building, you MUST rebuild the frontend for it to take effect.
+
+## Step 8: Build and Deploy
 
 ```bash
 # Go to repository root
@@ -174,10 +205,22 @@ chmod +x deploy/deploy.sh
 
 This will:
 - Build backend (TypeScript → JavaScript)
-- Build frontend (Next.js production build)
+- Build frontend (Next.js production build) - **uses .env.production from source**
 - Copy files to `/opt/playwright-platform`
 - Install production dependencies
 - Start PM2 processes
+
+**Note:** If frontend shows "failed to fetch" or uses `localhost:3005`, the frontend was built before the environment variable was set. Rebuild:
+```bash
+cd ~/erp-playwright-test/frontend
+cat > .env.production << EOF
+NEXT_PUBLIC_API_URL=http://ec2-13-235-76-91.ap-south-1.compute.amazonaws.com
+EOF
+npm run build
+cd ~/erp-playwright-test
+./deploy/deploy.sh
+pm2 restart playwright-frontend
+```
 
 **Expected output:**
 ```
@@ -194,7 +237,7 @@ This will:
 │ 1  │ playwright-frontend    │ online    │
 ```
 
-## Step 8: Configure nginx
+## Step 9: Configure nginx
 
 ### Fix nginx Hash Bucket Size
 
@@ -232,7 +275,7 @@ nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
 nginx: configuration file /etc/nginx/nginx.conf test is successful
 ```
 
-## Step 9: Verify Deployment
+## Step 10: Verify Deployment
 
 ### Check Services
 
@@ -264,7 +307,7 @@ http://ec2-13-235-76-91.ap-south-1.compute.amazonaws.com
 
 You should see the Playwright Test Platform dashboard.
 
-## Step 10: Configure Local Agent
+## Step 11: Configure Local Agent
 
 On your local development machine:
 

@@ -146,20 +146,29 @@ export class AgentClient {
     this.currentTestId = message.testId;
     this.sendStatus('recording', message.testId, 'Starting recording...');
 
-    try {
-      // Create temporary directory for test file
-      const testDir = path.join(process.cwd(), 'temp-tests', message.testId);
-      if (!fs.existsSync(testDir)) {
-        fs.mkdirSync(testDir, { recursive: true });
-      }
+      let stdout = '';
+      let stderr = '';
 
-      const outputFile = path.join(testDir, 'test.spec.ts');
+      try {
+        // Create temporary directory for test file
+        const testDir = path.join(process.cwd(), 'temp-tests', message.testId);
+        if (!fs.existsSync(testDir)) {
+          fs.mkdirSync(testDir, { recursive: true });
+        }
 
-      // Run playwright codegen (always visible, headless=false is default for codegen)
-      const command = `npx playwright codegen ${message.url} --target=typescript --output=${outputFile} --browser=${message.browser}`;
-      
-      console.log(`📝 Running: ${command}\n`);
-      console.log('🌐 Browser will open on your local machine (visible mode)...\n');
+        const outputFile = path.join(testDir, 'test.spec.ts');
+
+        // Run playwright codegen (always visible, headless=false is default for codegen)
+        // Use absolute path and quote it to handle spaces
+        const absoluteOutputFile = path.resolve(outputFile);
+        const command = `npx playwright codegen "${message.url}" --target=typescript --output="${absoluteOutputFile}" --browser=${message.browser}`;
+        
+        console.log(`📝 Running: ${command}\n`);
+        console.log(`📁 Output file will be: ${absoluteOutputFile}\n`);
+        console.log('🌐 Browser will open on your local machine (visible mode)...');
+        console.log('💡 RECOMMENDED: Interact with the page (click, type, navigate) to record actions');
+        console.log('💡 If you don\'t interact, a minimal test file will be created automatically');
+        console.log('💡 Then close the browser window to finish recording\n');
 
       this.currentProcess = exec(command, {
         cwd: process.cwd(),
@@ -167,28 +176,132 @@ export class AgentClient {
       });
 
       this.currentProcess.stdout?.on('data', (data: string) => {
-        console.log(data.toString());
+        const output = data.toString();
+        stdout += output;
+        console.log(output);
       });
 
       this.currentProcess.stderr?.on('data', (data: string) => {
-        console.error(data.toString());
+        const output = data.toString();
+        stderr += output;
+        console.error(output);
       });
 
       this.currentProcess.on('close', async (code: number) => {
         this.currentProcess = null;
 
-        if (code === 0 && fs.existsSync(outputFile)) {
-          console.log('\n✅ Recording completed successfully');
-          this.sendStatus('idle', message.testId, 'Recording completed');
+        // Wait a bit for file to be written (codegen might exit before file is fully written)
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-          // Upload test file to backend
-          await this.uploadTestFile(message.testId, outputFile);
+        // Check if file exists (regardless of exit code)
+        // Sometimes codegen exits with 0 even if no file was created
+        // Use absolute path for checking
+        const absoluteOutputFile = path.resolve(outputFile);
+        if (fs.existsSync(absoluteOutputFile)) {
+          const stats = fs.statSync(absoluteOutputFile);
+          if (stats.size > 0) {
+            console.log('\n✅ Recording completed successfully');
+            console.log(`📁 Test file found: ${absoluteOutputFile} (${stats.size} bytes)`);
+            this.sendStatus('idle', message.testId, 'Recording completed');
 
-          // Cleanup
-          fs.rmSync(testDir, { recursive: true, force: true });
+            // Upload test file to backend
+            try {
+              await this.uploadTestFile(message.testId, absoluteOutputFile);
+              console.log('✅ Test file uploaded successfully');
+            } catch (error: any) {
+              console.error('❌ Failed to upload test file:', error.message);
+              this.sendStatus('idle', message.testId, `Upload failed: ${error.message}`);
+            }
+
+            // Cleanup
+            fs.rmSync(testDir, { recursive: true, force: true });
+          } else {
+            console.error(`\n❌ Recording failed: File exists but is empty`);
+            console.error(`📁 File path: ${absoluteOutputFile}`);
+            this.sendStatus('idle', message.testId, 'Recording failed: Empty file');
+            // Cleanup empty file
+            fs.rmSync(testDir, { recursive: true, force: true });
+          }
         } else {
-          console.error(`\n❌ Recording failed with code ${code}`);
-          this.sendStatus('idle', message.testId, 'Recording failed');
+          // Playwright codegen didn't create a file (user didn't interact)
+          // Create a minimal test file as fallback
+          console.log(`\n⚠️  No actions recorded - creating minimal test file...`);
+          console.log(`💡 Tip: Next time, interact with the page (click, type, navigate) to record actions`);
+          
+          const minimalTestContent = `import { test, expect } from '@playwright/test';
+
+test('${message.testId}', async ({ page }) => {
+  // Navigate to the page
+  await page.goto('${message.url}');
+  
+  // TODO: Add your test actions here
+  // Example:
+  // await page.click('button');
+  // await page.fill('input[name="email"]', 'test@example.com');
+  // await expect(page.locator('h1')).toBeVisible();
+});
+`;
+
+          try {
+            // Ensure directory exists
+            if (!fs.existsSync(testDir)) {
+              fs.mkdirSync(testDir, { recursive: true });
+            }
+            
+            // Create the minimal test file
+            fs.writeFileSync(absoluteOutputFile, minimalTestContent, 'utf-8');
+            
+            // Verify file was created
+            if (!fs.existsSync(absoluteOutputFile)) {
+              throw new Error('File was not created after writeFileSync');
+            }
+            
+            const stats = fs.statSync(absoluteOutputFile);
+            console.log(`✅ Created minimal test file: ${absoluteOutputFile}`);
+            console.log(`📝 File size: ${stats.size} bytes`);
+            console.log(`📝 File contains basic structure - you can edit it later`);
+            console.log(`📁 File location: ${absoluteOutputFile}`);
+            
+            this.sendStatus('idle', message.testId, 'Recording completed (minimal test)');
+
+            // Upload test file to backend
+            try {
+              await this.uploadTestFile(message.testId, absoluteOutputFile);
+              console.log('✅ Test file uploaded successfully');
+            } catch (error: any) {
+              console.error('❌ Failed to upload test file:', error.message);
+              console.error(`📁 File still exists at: ${absoluteOutputFile}`);
+              this.sendStatus('idle', message.testId, `Upload failed: ${error.message}`);
+              // Don't cleanup if upload failed - keep file for debugging
+              return;
+            }
+
+            // Wait a moment before cleanup so user can see the file
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Cleanup
+            if (fs.existsSync(testDir)) {
+              fs.rmSync(testDir, { recursive: true, force: true });
+              console.log(`🧹 Cleaned up temporary directory: ${testDir}`);
+            }
+          } catch (error: any) {
+            console.error(`\n❌ Failed to create fallback test file: ${error.message}`);
+            console.error(`📁 Expected file not found: ${absoluteOutputFile}`);
+            console.error(`📂 Checked directory: ${testDir}`);
+            if (stdout) {
+              console.error(`📤 stdout: ${stdout.substring(0, 500)}`);
+            }
+            if (stderr) {
+              console.error(`📤 stderr: ${stderr.substring(0, 500)}`);
+            }
+            console.error(`💡 Tip: Make sure to interact with the page (click, type) before closing the browser window`);
+            console.error(`💡 Playwright codegen only saves a file if you perform actions on the page`);
+            this.sendStatus('idle', message.testId, 'Recording failed: No file created');
+            // Cleanup empty directory
+            if (fs.existsSync(testDir)) {
+              fs.rmSync(testDir, { recursive: true, force: true });
+            }
+          }
         }
 
         this.currentTestId = null;
