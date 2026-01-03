@@ -8,13 +8,7 @@ import { fetchTests } from '@/lib/api'
 export default function Dashboard() {
   const [tests, setTests] = useState<Test[]>([])
   const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    loadTests()
-    // Poll for updates every 5 seconds
-    const interval = setInterval(loadTests, 5000)
-    return () => clearInterval(interval)
-  }, [])
+  const [groupBy, setGroupBy] = useState<'none' | 'date'>('date')
 
   const loadTests = async () => {
     try {
