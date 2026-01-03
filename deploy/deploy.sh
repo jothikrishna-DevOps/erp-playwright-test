@@ -48,6 +48,8 @@ cp -r frontend/public $DEPLOY_DIR/frontend/ 2>/dev/null || true
 cp -r frontend/node_modules $DEPLOY_DIR/frontend/ 2>/dev/null || npm install --prefix $DEPLOY_DIR/frontend --production
 cp frontend/package.json $DEPLOY_DIR/frontend/
 cp frontend/.env.production $DEPLOY_DIR/frontend/.env.production 2>/dev/null || echo "⚠️  .env.production not found"
+# Copy shared folder to frontend (required for TypeScript imports)
+cp -r shared $DEPLOY_DIR/frontend/shared 2>/dev/null || echo "⚠️  Shared folder not found"
 
 # Copy shared types
 echo "  Copying shared types..."
