@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { BrowserType } from '../../../shared/types'
+import { BrowserType } from '@/shared/types'
 
 export default function RecordPage() {
   const router = useRouter()

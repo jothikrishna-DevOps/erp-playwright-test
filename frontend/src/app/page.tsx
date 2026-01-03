@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Test } from '../../shared/types'
+import { Test } from '@/shared/types'
 import { fetchTests } from '@/lib/api'
 
 export default function Dashboard() {
