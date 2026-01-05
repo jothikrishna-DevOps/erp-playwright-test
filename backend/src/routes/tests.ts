@@ -47,12 +47,30 @@ export function setupTestRoutes(router: Router, storagePath: string) {
     fs.mkdirSync(uploadsPath, { recursive: true });
   }
   const upload = multer({ dest: uploadsPath });
+  // Helper function to map database row to Test type
+  function mapDbRowToTest(row: any): Test {
+    return {
+      id: row.id,
+      name: row.name,
+      url: row.url,
+      browser: row.browser,
+      description: row.description || undefined,
+      createdBy: row.created_by,
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
+      status: row.status,
+      filePath: row.file_path || undefined,
+      version: row.version || 1
+    };
+  }
+
   // List all tests
   router.get('/tests', async (req: Request, res: Response) => {
     try {
-      const tests = await dbAll<Test>(
+      const rows = await dbAll<any>(
         'SELECT * FROM tests ORDER BY created_at DESC'
       );
+      const tests = rows.map(mapDbRowToTest);
       res.json(tests);
     } catch (error) {
       console.error('Error fetching tests:', error);
@@ -63,14 +81,14 @@ export function setupTestRoutes(router: Router, storagePath: string) {
   // Get test by ID
   router.get('/tests/:id', async (req: Request, res: Response) => {
     try {
-      const test = await dbGet<Test>(
+      const row = await dbGet<any>(
         'SELECT * FROM tests WHERE id = ?',
         [req.params.id]
       );
-      if (!test) {
+      if (!row) {
         return res.status(404).json({ error: 'Test not found' });
       }
-      res.json(test);
+      res.json(mapDbRowToTest(row));
     } catch (error) {
       console.error('Error fetching test:', error);
       res.status(500).json({ error: 'Failed to fetch test' });
@@ -132,14 +150,16 @@ export function setupTestRoutes(router: Router, storagePath: string) {
       const { mode = 'headless' }: RunTestRequest = req.body;
       const testId = req.params.id;
 
-      const test = await dbGet<Test>(
+      const row = await dbGet<any>(
         'SELECT * FROM tests WHERE id = ?',
         [testId]
       );
 
-      if (!test) {
+      if (!row) {
         return res.status(404).json({ error: 'Test not found' });
       }
+
+      const test = mapDbRowToTest(row);
 
       if (!test.filePath) {
         return res.status(400).json({ error: 'Test file not uploaded yet' });
@@ -175,14 +195,16 @@ export function setupTestRoutes(router: Router, storagePath: string) {
         return res.status(400).json({ error: 'No file uploaded' });
       }
 
-      const test = await dbGet<Test>(
+      const row = await dbGet<any>(
         'SELECT * FROM tests WHERE id = ?',
         [testId]
       );
 
-      if (!test) {
+      if (!row) {
         return res.status(404).json({ error: 'Test not found' });
       }
+
+      const test = mapDbRowToTest(row);
 
       // Create test directory using test name (sanitized) instead of testId
       const folderName = await getUniqueTestFolder(storagePath, test.name, testId);
@@ -212,12 +234,18 @@ export function setupTestRoutes(router: Router, storagePath: string) {
   // Download test file
   router.get('/tests/:id/download', async (req: Request, res: Response) => {
     try {
-      const test = await dbGet<Test>(
+      const row = await dbGet<any>(
         'SELECT * FROM tests WHERE id = ?',
         [req.params.id]
       );
 
-      if (!test || !test.filePath) {
+      if (!row) {
+        return res.status(404).json({ error: 'Test not found' });
+      }
+
+      const test = mapDbRowToTest(row);
+
+      if (!test.filePath) {
         return res.status(404).json({ error: 'Test file not found' });
       }
 
@@ -237,14 +265,16 @@ export function setupTestRoutes(router: Router, storagePath: string) {
   // Delete test
   router.delete('/tests/:id', async (req: Request, res: Response) => {
     try {
-      const test = await dbGet<Test>(
+      const row = await dbGet<any>(
         'SELECT * FROM tests WHERE id = ?',
         [req.params.id]
       );
 
-      if (!test) {
+      if (!row) {
         return res.status(404).json({ error: 'Test not found' });
       }
+
+      const test = mapDbRowToTest(row);
 
       // Delete file if exists
       if (test.filePath && fs.existsSync(test.filePath)) {
