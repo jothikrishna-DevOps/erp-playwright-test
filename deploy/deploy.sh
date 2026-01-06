@@ -22,11 +22,13 @@ echo "✅ Backend built"
 
 echo "📦 Building frontend..."
 cd ../frontend
-# Copy shared folder to src/shared before building (required for TypeScript imports)
-if [ ! -d "src/shared" ]; then
-  echo "  Copying shared types to src/shared..."
-  cp -r ../shared src/shared
-fi
+# Always copy shared folder to src/shared before building (required for TypeScript imports)
+echo "  Copying shared types to src/shared..."
+rm -rf src/shared 2>/dev/null || true
+mkdir -p src/shared
+cp -r ../shared/* src/shared/
+# Clear Next.js cache to avoid stale builds
+rm -rf .next 2>/dev/null || true
 npm install --production=false
 npm run build
 echo "✅ Frontend built"
