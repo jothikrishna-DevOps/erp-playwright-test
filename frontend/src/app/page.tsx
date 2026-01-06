@@ -9,6 +9,8 @@ export default function Dashboard() {
   const [tests, setTests] = useState<Test[]>([])
   const [loading, setLoading] = useState(true)
   const [groupBy, setGroupBy] = useState<'none' | 'date' | 'folder'>('folder')
+  const [viewMode, setViewMode] = useState<'tests' | 'files'>('tests')
+  const [showAgentHelper, setShowAgentHelper] = useState(false)
 
   const loadTests = async () => {
     try {
@@ -52,6 +54,10 @@ export default function Dashboard() {
       default: return 'bg-earth-300 text-earth-800'
     }
   }
+
+  useEffect(() => {
+    loadTests()
+  }, [])
 
   // Extract folder name from file path
   const getFolderName = (filePath?: string): string => {
@@ -111,17 +117,34 @@ export default function Dashboard() {
         </div>
 
         {/* Actions */}
-        <div className="mb-8 flex items-center justify-between">
-          <Link
-            href="/record"
-            className="inline-flex items-center px-6 py-3 bg-sage-600 text-white rounded-lg hover:bg-sage-700 transition-colors shadow-sm"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-            Record New Test
-          </Link>
-          
+        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/record"
+              className="inline-flex items-center px-6 py-3 bg-sage-600 text-white rounded-lg hover:bg-sage-700 transition-colors shadow-sm"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              Record New Test
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => setViewMode(viewMode === 'tests' ? 'files' : 'tests')}
+              className={`inline-flex items-center px-4 py-2 rounded-lg border text-sm transition-colors ${
+                viewMode === 'files'
+                  ? 'bg-earth-900 text-white border-earth-900'
+                  : 'bg-white text-earth-800 border-earth-300 hover:bg-earth-50'
+              }`}
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h18" />
+              </svg>
+              {viewMode === 'files' ? 'Back to Tests' : 'View Files & Folders'}
+            </button>
+          </div>
+
           <div className="flex items-center gap-2">
             <label className="text-sm text-earth-600">Group by:</label>
             <select
@@ -136,7 +159,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Tests Table */}
+        {/* Tests / Files Table */}
         <div className="bg-white rounded-lg shadow-sm border border-earth-200 overflow-hidden">
           {loading ? (
             <div className="p-12 text-center text-earth-600">
@@ -148,7 +171,7 @@ export default function Dashboard() {
               <p className="text-lg mb-2">No tests yet</p>
               <p className="text-sm">Start by recording your first test</p>
             </div>
-          ) : (
+          ) : viewMode === 'tests' ? (
             <div className="divide-y divide-earth-200">
               {Object.entries(groupedTests()).map(([groupName, groupTests]) => (
                 <div key={groupName} className="py-4">
@@ -266,9 +289,100 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+          ) : (
+            <div className="p-6 space-y-4">
+              {Object.entries(groupedTests()).map(([folder, folderTests]) => (
+                <div key={folder} className="border border-earth-200 rounded-lg overflow-hidden">
+                  <div className="px-4 py-2 bg-earth-100 border-b border-earth-200 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-earth-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      </svg>
+                      <span className="text-sm font-semibold text-earth-800">{folder}</span>
+                      <span className="text-xs text-earth-500">({folderTests.length} tests)</span>
+                    </div>
+                  </div>
+                  <ul className="divide-y divide-earth-100">
+                    {folderTests.map((test) => (
+                      <li key={test.id} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <div>
+                          <div className="text-sm font-medium text-earth-900">{test.name}</div>
+                          <div className="text-xs text-earth-500 truncate max-w-md">
+                            {test.filePath || 'No file yet'}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {test.filePath && (
+                            <button
+                              onClick={() => handleDownload(test.id, test.name)}
+                              className="inline-flex items-center text-earth-600 hover:text-earth-700 px-3 py-1 rounded hover:bg-earth-50 transition-colors text-xs"
+                            >
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                              </svg>
+                              Download
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>
+
+      {/* Agent Helper Bot */}
+      <button
+        type="button"
+        onClick={() => setShowAgentHelper(!showAgentHelper)}
+        className="fixed bottom-6 right-6 z-20 inline-flex items-center justify-center w-12 h-12 rounded-full bg-sage-600 text-white shadow-lg hover:bg-sage-700"
+        aria-label="Agent setup help"
+      >
+        ?
+      </button>
+
+      {showAgentHelper && (
+        <div className="fixed bottom-24 right-6 z-20 w-80 max-w-full bg-white border border-earth-200 rounded-xl shadow-xl p-4">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div>
+              <h2 className="text-sm font-semibold text-earth-900">
+                Agent Setup Helper
+              </h2>
+              <p className="text-xs text-earth-600">
+                Follow these steps on your local machine to install and start the agent:
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAgentHelper(false)}
+              className="text-earth-400 hover:text-earth-700 text-sm"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+          <ol className="list-decimal list-inside space-y-1 text-xs text-earth-700 mb-3">
+            <li>Clone the repo and install dependencies.</li>
+            <li>Copy <code>.env.example</code> to <code>.env</code> and set backend URLs.</li>
+            <li>Install Playwright browsers.</li>
+            <li>Run the agent in dev mode.</li>
+          </ol>
+          <div className="bg-earth-50 border border-earth-200 rounded-lg p-2">
+            <pre className="text-[10px] leading-4 text-earth-800 overflow-x-auto">
+{`# On your local machine
+git clone https://github.com/jothikrishna-DevOps/erp-playwright-test.git
+cd erp-playwright-test/agent
+cp .env.example .env   # Set BACKEND_URL and WS_URL to your EC2 backend
+npm install
+npx playwright install
+npm run dev`}
+            </pre>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

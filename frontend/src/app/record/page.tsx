@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { BrowserType } from '@/shared/types'
+import { fetchFolders, createTest } from '@/lib/api'
 
 export default function RecordPage() {
   const router = useRouter()
@@ -10,10 +11,28 @@ export default function RecordPage() {
     name: '',
     url: '',
     browser: 'chromium' as BrowserType,
-    description: ''
+    description: '',
+    folderName: ''
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [folders, setFolders] = useState<string[]>([])
+  const [foldersLoading, setFoldersLoading] = useState(false)
+
+  useEffect(() => {
+    const loadFolders = async () => {
+      try {
+        setFoldersLoading(true)
+        const data = await fetchFolders()
+        setFolders(data)
+      } catch (err) {
+        console.error('Failed to load folders', err)
+      } finally {
+        setFoldersLoading(false)
+      }
+    }
+    loadFolders()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -21,20 +40,20 @@ export default function RecordPage() {
     setLoading(true)
 
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005'
-      const response = await fetch(`${API_URL}/api/tests/record`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+      const created = await createTest({
+        name: formData.name,
+        url: formData.url,
+        browser: formData.browser,
+        description: formData.description || undefined,
+        folderName: formData.folderName || undefined
       })
 
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to start recording')
+      // Redirect to dashboard after successful creation
+      if (created?.id) {
+        router.push('/')
+      } else {
+        router.push('/')
       }
-
-      // Redirect to dashboard
-      router.push('/')
     } catch (err: any) {
       setError(err.message || 'Failed to start recording')
     } finally {
@@ -131,6 +150,33 @@ export default function RecordPage() {
                 className="w-full px-4 py-2 border border-earth-300 rounded-lg focus:ring-2 focus:ring-sage-500 focus:border-sage-500 outline-none transition-colors resize-none"
                 placeholder="Describe what this test does..."
               />
+            </div>
+
+            <div>
+              <label htmlFor="folderName" className="block text-sm font-medium text-earth-700 mb-2">
+                Folder Name <span className="text-earth-400 font-normal">(optional)</span>
+              </label>
+              <input
+                type="text"
+                id="folderName"
+                list="existing-folders"
+                value={formData.folderName}
+                onChange={(e) => setFormData({ ...formData, folderName: e.target.value })}
+                className="w-full px-4 py-2 border border-earth-300 rounded-lg focus:ring-2 focus:ring-sage-500 focus:border-sage-500 outline-none transition-colors"
+                placeholder="e.g., smoke-tests"
+              />
+              <datalist id="existing-folders">
+                {folders.map((folder) => (
+                  <option key={folder} value={folder} />
+                ))}
+              </datalist>
+              <p className="mt-1 text-xs text-earth-500">
+                {foldersLoading
+                  ? 'Loading existing folders...'
+                  : folders.length > 0
+                    ? 'Choose an existing folder from the list or type a new one.'
+                    : 'Type a folder name to group related tests together.'}
+              </p>
             </div>
 
             <div className="pt-4">

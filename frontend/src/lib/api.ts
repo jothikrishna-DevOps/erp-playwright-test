@@ -25,6 +25,16 @@ export async function createTest(data: CreateTestRequest): Promise<Test> {
   return response.json()
 }
 
+export async function fetchFolders(): Promise<string[]> {
+  const response = await fetch(`${API_URL}/api/tests/folders`, {
+    cache: 'no-store'
+  })
+  if (!response.ok) {
+    throw new Error('Failed to fetch folders')
+  }
+  return response.json()
+}
+
 export async function runTest(testId: string, mode: 'headless' | 'visible'): Promise<void> {
   const response = await fetch(`${API_URL}/api/tests/${testId}/run`, {
     method: 'POST',

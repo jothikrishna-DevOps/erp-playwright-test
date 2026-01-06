@@ -63,6 +63,7 @@ export async function initDatabase(): Promise<void> {
       url TEXT NOT NULL,
       browser TEXT NOT NULL DEFAULT 'chromium',
       description TEXT,
+      folder_name TEXT,
       created_by TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -75,6 +76,13 @@ export async function initDatabase(): Promise<void> {
   // Add description column if it doesn't exist (for existing databases)
   await dbRun(`
     ALTER TABLE tests ADD COLUMN description TEXT
+  `).catch(() => {
+    // Column already exists, ignore error
+  });
+
+  // Add folder_name column if it doesn't exist (for existing databases)
+  await dbRun(`
+    ALTER TABLE tests ADD COLUMN folder_name TEXT
   `).catch(() => {
     // Column already exists, ignore error
   });

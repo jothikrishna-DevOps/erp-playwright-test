@@ -18,6 +18,7 @@ export interface Test {
   url: string;
   browser: BrowserType;
   description?: string;
+  folderName?: string;
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
@@ -88,6 +89,7 @@ export interface CreateTestRequest {
   url: string;
   browser?: BrowserType;
   description?: string;
+  folderName?: string;
 }
 
 export interface RunTestRequest {

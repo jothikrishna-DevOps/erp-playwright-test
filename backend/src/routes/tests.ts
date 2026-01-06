@@ -55,6 +55,7 @@ export function setupTestRoutes(router: Router, storagePath: string) {
       url: row.url,
       browser: row.browser,
       description: row.description || undefined,
+      folderName: row.folder_name || undefined,
       createdBy: row.created_by,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
@@ -78,6 +79,20 @@ export function setupTestRoutes(router: Router, storagePath: string) {
     }
   });
 
+  // List distinct folder names (for UI dropdown)
+  router.get('/tests/folders', async (_req: Request, res: Response) => {
+    try {
+      const rows = await dbAll<any>(
+        `SELECT DISTINCT folder_name FROM tests WHERE folder_name IS NOT NULL AND folder_name != '' ORDER BY folder_name COLLATE NOCASE`
+      );
+      const folders = rows.map(r => r.folder_name as string);
+      res.json(folders);
+    } catch (error) {
+      console.error('Error fetching folders:', error);
+      res.status(500).json({ error: 'Failed to fetch folders' });
+    }
+  });
+
   // Get test by ID
   router.get('/tests/:id', async (req: Request, res: Response) => {
     try {
@@ -98,19 +113,21 @@ export function setupTestRoutes(router: Router, storagePath: string) {
   // Create new test (initiate recording)
   router.post('/tests/record', async (req: Request, res: Response) => {
     try {
-      const { name, url, browser = 'chromium', description }: CreateTestRequest = req.body;
+      const { name, url, browser = 'chromium', description, folderName }: CreateTestRequest = req.body;
 
       if (!name || !url) {
         return res.status(400).json({ error: 'Name and URL are required' });
       }
 
       const testId = uuidv4();
+      const safeFolderName = folderName ? sanitizeFileName(folderName) : undefined;
       const test: Test = {
         id: testId,
         name,
         url,
         browser: browser as any,
         description: description || undefined,
+        folderName: safeFolderName,
         createdBy: 'developer', // TODO: Get from auth
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -119,9 +136,9 @@ export function setupTestRoutes(router: Router, storagePath: string) {
       };
 
       await dbRun(
-        `INSERT INTO tests (id, name, url, browser, description, created_by, status, version)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [testId, name, url, browser, description || null, test.createdBy, 'pending', 1]
+        `INSERT INTO tests (id, name, url, browser, description, folder_name, created_by, status, version)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [testId, name, url, browser, description || null, safeFolderName || null, test.createdBy, 'pending', 1]
       );
 
       // Send record command to connected agents
@@ -206,8 +223,9 @@ export function setupTestRoutes(router: Router, storagePath: string) {
 
       const test = mapDbRowToTest(row);
 
-      // Create test directory using test name (sanitized) instead of testId
-      const folderName = await getUniqueTestFolder(storagePath, test.name, testId);
+      // Determine folder name: prefer explicit folderName, otherwise derive from test name
+      const rawFolderName = test.folderName || test.name;
+      const folderName = sanitizeFileName(rawFolderName);
       const testDir = path.join(storagePath, 'tests', folderName);
       if (!fs.existsSync(testDir)) {
         fs.mkdirSync(testDir, { recursive: true });
