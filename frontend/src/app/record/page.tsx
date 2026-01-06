@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { BrowserType } from '@/shared/types'
 import { fetchFolders, createTest } from '@/lib/api'
@@ -12,12 +12,15 @@ export default function RecordPage() {
     url: '',
     browser: 'chromium' as BrowserType,
     description: '',
-    folderName: ''
+    folderName: '',
+    createdBy: ''
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [folders, setFolders] = useState<string[]>([])
   const [foldersLoading, setFoldersLoading] = useState(false)
+  const [isCreatingNewFolder, setIsCreatingNewFolder] = useState(false)
+  const [folderMessage, setFolderMessage] = useState('')
 
   useEffect(() => {
     const loadFolders = async () => {
@@ -34,18 +37,60 @@ export default function RecordPage() {
     loadFolders()
   }, [])
 
+  const normalizeFolderName = (name: string) => {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9\-_]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setFolderMessage('')
     setLoading(true)
 
     try {
+      const createdBy = formData.createdBy.trim()
+      if (!createdBy) {
+        setError('Created By is required')
+        setLoading(false)
+        return
+      }
+
+      let folderNameToSend: string | undefined
+      if (isCreatingNewFolder && formData.folderName) {
+        const normalized = normalizeFolderName(formData.folderName)
+        if (!normalized) {
+          setError('Folder name is invalid. Please use letters, numbers, hyphens or underscores.')
+          setLoading(false)
+          return
+        }
+
+        const normalizedExisting = folders.map(f => normalizeFolderName(f))
+        if (normalizedExisting.includes(normalized)) {
+          setFolderMessage('Folder already exists; this test will be saved in that folder.')
+          // Reuse the existing canonical folder name from the list
+          const existing = folders.find(f => normalizeFolderName(f) === normalized)
+          folderNameToSend = existing || normalized
+        } else {
+          folderNameToSend = normalized
+        }
+      } else if (!isCreatingNewFolder && formData.folderName) {
+        // Existing folder selected from dropdown
+        folderNameToSend = formData.folderName
+      }
+
       const created = await createTest({
         name: formData.name,
         url: formData.url,
         browser: formData.browser,
         description: formData.description || undefined,
-        folderName: formData.folderName || undefined
+        folderName: folderNameToSend,
+        createdBy
       })
 
       // Redirect to dashboard after successful creation
@@ -139,6 +184,21 @@ export default function RecordPage() {
             </div>
 
             <div>
+              <label htmlFor="createdBy" className="block text-sm font-medium text-earth-700 mb-2">
+                Created By
+              </label>
+              <input
+                type="text"
+                id="createdBy"
+                required
+                value={formData.createdBy}
+                onChange={(e) => setFormData({ ...formData, createdBy: e.target.value })}
+                className="w-full px-4 py-2 border border-earth-300 rounded-lg focus:ring-2 focus:ring-sage-500 focus:border-sage-500 outline-none transition-colors"
+                placeholder="e.g., Isha"
+              />
+            </div>
+
+            <div>
               <label htmlFor="description" className="block text-sm font-medium text-earth-700 mb-2">
                 Description <span className="text-earth-400 font-normal">(optional)</span>
               </label>
@@ -154,29 +214,61 @@ export default function RecordPage() {
 
             <div>
               <label htmlFor="folderName" className="block text-sm font-medium text-earth-700 mb-2">
-                Folder Name <span className="text-earth-400 font-normal">(optional)</span>
+                Folder <span className="text-earth-400 font-normal">(optional)</span>
               </label>
-              <input
-                type="text"
+              <select
                 id="folderName"
-                list="existing-folders"
-                value={formData.folderName}
-                onChange={(e) => setFormData({ ...formData, folderName: e.target.value })}
-                className="w-full px-4 py-2 border border-earth-300 rounded-lg focus:ring-2 focus:ring-sage-500 focus:border-sage-500 outline-none transition-colors"
-                placeholder="e.g., smoke-tests"
-              />
-              <datalist id="existing-folders">
+                value={isCreatingNewFolder ? '__NEW__' : (formData.folderName || '')}
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (value === '__NEW__') {
+                    setIsCreatingNewFolder(true)
+                    setFormData({ ...formData, folderName: '' })
+                    setFolderMessage('')
+                  } else {
+                    setIsCreatingNewFolder(false)
+                    setFormData({ ...formData, folderName: value })
+                    setFolderMessage(
+                      value
+                        ? 'Existing folder selected; this test will be saved in that folder.'
+                        : ''
+                    )
+                  }
+                }}
+                className="w-full px-4 py-2 border border-earth-300 rounded-lg focus:ring-2 focus:ring-sage-500 focus:border-sage-500 outline-none transition-colors mb-2"
+              >
+                <option value="">No folder</option>
                 {folders.map((folder) => (
-                  <option key={folder} value={folder} />
+                  <option key={folder} value={folder}>
+                    {folder}
+                  </option>
                 ))}
-              </datalist>
+                <option value="__NEW__">+ Create New Folder</option>
+              </select>
+
+              {isCreatingNewFolder && (
+                <input
+                  type="text"
+                  id="newFolderName"
+                  value={formData.folderName}
+                  onChange={(e) => setFormData({ ...formData, folderName: e.target.value })}
+                  className="w-full px-4 py-2 border border-earth-300 rounded-lg focus:ring-2 focus:ring-sage-500 focus:border-sage-500 outline-none transition-colors"
+                  placeholder="e.g., smoke-tests"
+                />
+              )}
+
               <p className="mt-1 text-xs text-earth-500">
                 {foldersLoading
                   ? 'Loading existing folders...'
                   : folders.length > 0
-                    ? 'Choose an existing folder from the list or type a new one.'
-                    : 'Type a folder name to group related tests together.'}
+                    ? 'Select an existing folder or choose “+ Create New Folder” to add a new one.'
+                    : 'Create a new folder to group related tests together.'}
               </p>
+              {folderMessage && (
+                <p className="mt-1 text-xs text-sage-700">
+                  {folderMessage}
+                </p>
+              )}
             </div>
 
             <div className="pt-4">

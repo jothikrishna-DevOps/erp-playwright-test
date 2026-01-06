@@ -90,6 +90,7 @@ export interface CreateTestRequest {
   browser?: BrowserType;
   description?: string;
   folderName?: string;
+  createdBy?: string;
 }
 
 export interface RunTestRequest {

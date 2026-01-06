@@ -113,13 +113,17 @@ export function setupTestRoutes(router: Router, storagePath: string) {
   // Create new test (initiate recording)
   router.post('/tests/record', async (req: Request, res: Response) => {
     try {
-      const { name, url, browser = 'chromium', description, folderName }: CreateTestRequest = req.body;
+      const { name, url, browser = 'chromium', description, folderName, createdBy }: CreateTestRequest = req.body;
 
       if (!name || !url) {
         return res.status(400).json({ error: 'Name and URL are required' });
       }
 
       const testId = uuidv4();
+      // Normalize creator name, default to 'developer' if not provided
+      const creator = (createdBy || '').toString().trim() || 'developer';
+
+      // Normalize folder name (trim, lower-case, safe for filesystem)
       const safeFolderName = folderName ? sanitizeFileName(folderName) : undefined;
       const test: Test = {
         id: testId,
@@ -128,7 +132,7 @@ export function setupTestRoutes(router: Router, storagePath: string) {
         browser: browser as any,
         description: description || undefined,
         folderName: safeFolderName,
-        createdBy: 'developer', // TODO: Get from auth
+        createdBy: creator,
         createdAt: new Date(),
         updatedAt: new Date(),
         status: 'pending',
@@ -138,7 +142,7 @@ export function setupTestRoutes(router: Router, storagePath: string) {
       await dbRun(
         `INSERT INTO tests (id, name, url, browser, description, folder_name, created_by, status, version)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [testId, name, url, browser, description || null, safeFolderName || null, test.createdBy, 'pending', 1]
+        [testId, name.trim(), url.trim(), browser, description || null, safeFolderName || null, creator, 'pending', 1]
       );
 
       // Send record command to connected agents
