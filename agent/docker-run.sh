@@ -128,11 +128,23 @@ else
         docker rm "$CONTAINER_NAME" 2>/dev/null || true
     fi
 
-    # Detect if X11 forwarding is needed (Linux only)
+    # Automatically enable X11 access for Docker on Linux (if needed)
     # Mac/Windows use Docker Desktop which handles GUI automatically
     X11_ARGS=""
     if [ -d /tmp/.X11-unix ] && [ -n "$DISPLAY" ]; then
         echo -e "${GREEN}✅ Detected Linux with X11 - enabling X11 forwarding${NC}"
+        # Try to automatically enable X11 access for Docker containers
+        if command -v xhost &> /dev/null; then
+            if xhost +local:docker 2>/dev/null; then
+                echo -e "${GREEN}✅ Enabled X11 access for Docker automatically${NC}"
+            else
+                echo -e "${YELLOW}⚠️  Could not enable X11 access automatically (may already be set)${NC}"
+                echo -e "${YELLOW}   If browser doesn't open, run: ${GREEN}xhost +local:docker${NC}"
+            fi
+        else
+            echo -e "${YELLOW}⚠️  xhost command not found - X11 access may not work${NC}"
+            echo -e "${YELLOW}   Install x11-xserver-utils or run: ${GREEN}xhost +local:docker${NC}"
+        fi
         X11_ARGS="-e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix:rw"
     else
         echo -e "${GREEN}✅ Detected Mac/Windows - Docker Desktop will handle GUI automatically${NC}"
