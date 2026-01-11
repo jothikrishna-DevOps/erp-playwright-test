@@ -14,9 +14,18 @@ async function main() {
   
   if (!config.agentId) {
     config.agentId = uuidv4();
-    config.name = `${os.hostname()}-${config.agentId.substring(0, 8)}`;
+    // Add "docker" prefix to agent name if running in Docker (for easy identification)
+    const namePrefix = process.env.DOCKER === 'true' ? 'docker' : os.hostname();
+    config.name = `${namePrefix}-${config.agentId.substring(0, 8)}`;
     saveConfig(config);
     console.log(`✅ Generated new agent ID: ${config.agentId}`);
+  }
+
+  // Ensure name is set (should always be set at this point)
+  if (!config.name) {
+    const namePrefix = process.env.DOCKER === 'true' ? 'docker' : os.hostname();
+    config.name = `${namePrefix}-${config.agentId.substring(0, 8)}`;
+    saveConfig(config);
   }
 
   if (!config.token) {
@@ -30,15 +39,22 @@ async function main() {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:3005';
   const wsUrl = process.env.WS_URL || 'ws://localhost:3005';
 
+  // Ensure name is set (should always be set at this point)
+  if (!config.name) {
+    const namePrefix = process.env.DOCKER === 'true' ? 'docker' : os.hostname();
+    config.name = `${namePrefix}-${config.agentId!.substring(0, 8)}`;
+    saveConfig(config);
+  }
+
   console.log(`📡 Connecting to backend: ${backendUrl}`);
   console.log(`🆔 Agent ID: ${config.agentId}`);
   console.log(`📝 Agent Name: ${config.name}\n`);
 
   // Create and start agent client
   const client = new AgentClient({
-    agentId: config.agentId,
-    token: config.token,
-    name: config.name,
+    agentId: config.agentId!,
+    token: config.token!,
+    name: config.name!,
     backendUrl,
     wsUrl
   });

@@ -38,12 +38,14 @@ export interface Agent {
 // WebSocket Messages
 export type WSMessageType = 
   | 'agent:register'
+  | 'agent:registered'
   | 'agent:status'
   | 'agent:heartbeat'
   | 'command:record'
   | 'command:run'
   | 'command:stop'
-  | 'test:update';
+  | 'test:update'
+  | 'error';
 
 export interface WSMessage {
   type: WSMessageType;

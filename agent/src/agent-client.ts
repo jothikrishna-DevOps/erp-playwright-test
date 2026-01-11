@@ -139,9 +139,17 @@ export class AgentClient {
   }
 
   private async handleRecordCommand(message: CommandRecordMessage): Promise<void> {
+    // Force Chromium if FORCE_CHROMIUM env var is set (for Docker agent)
+    const browser = process.env.FORCE_CHROMIUM === 'true' ? 'chromium' : message.browser;
+    
     console.log(`\n🎬 Starting recording for test: ${message.testId}`);
     console.log(`   URL: ${message.url}`);
-    console.log(`   Browser: ${message.browser}\n`);
+    if (process.env.FORCE_CHROMIUM === 'true') {
+      console.log(`   Browser: ${browser} (Chromium-only mode enabled)`);
+    } else {
+      console.log(`   Browser: ${browser}`);
+    }
+    console.log('');
 
     this.currentTestId = message.testId;
     this.sendStatus('recording', message.testId, 'Starting recording...');
@@ -150,8 +158,10 @@ export class AgentClient {
       let stderr = '';
 
       try {
-        // Create temporary directory for test file
-        const testDir = path.join(process.cwd(), 'temp-tests', message.testId);
+        // Support configurable workspace path for Docker (via WORKSPACE_PATH env var)
+        // Defaults to current working directory for backward compatibility
+        const workspaceRoot = process.env.WORKSPACE_PATH || process.cwd();
+        const testDir = path.join(workspaceRoot, 'temp-tests', message.testId);
         if (!fs.existsSync(testDir)) {
           fs.mkdirSync(testDir, { recursive: true });
         }
@@ -161,7 +171,7 @@ export class AgentClient {
         // Run playwright codegen (always visible, headless=false is default for codegen)
         // Use absolute path and quote it to handle spaces
         const absoluteOutputFile = path.resolve(outputFile);
-        const command = `npx playwright codegen "${message.url}" --target=typescript --output="${absoluteOutputFile}" --browser=${message.browser}`;
+        const command = `npx playwright codegen "${message.url}" --target=typescript --output="${absoluteOutputFile}" --browser=${browser}`;
         
         console.log(`📝 Running: ${command}\n`);
         console.log(`📁 Output file will be: ${absoluteOutputFile}\n`);
@@ -447,7 +457,9 @@ test('${message.testId}', async ({ page }) => {
         }
       );
 
-      const testDir = path.join(process.cwd(), 'temp-tests', testId);
+      // Support configurable workspace path for Docker (via WORKSPACE_PATH env var)
+      const workspaceRoot = process.env.WORKSPACE_PATH || process.cwd();
+      const testDir = path.join(workspaceRoot, 'temp-tests', testId);
       if (!fs.existsSync(testDir)) {
         fs.mkdirSync(testDir, { recursive: true });
       }
