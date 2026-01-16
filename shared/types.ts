@@ -2,12 +2,12 @@
 
 export type BrowserType = 'chromium' | 'firefox' | 'webkit';
 
-export type TestStatus = 
-  | 'pending' 
-  | 'recording' 
-  | 'ready' 
-  | 'running' 
-  | 'completed' 
+export type TestStatus =
+  | 'pending'
+  | 'recording'
+  | 'ready'
+  | 'running'
+  | 'completed'
   | 'failed';
 
 export type AgentStatus = 'idle' | 'recording' | 'running';
@@ -36,7 +36,7 @@ export interface Agent {
 }
 
 // WebSocket Messages
-export type WSMessageType = 
+export type WSMessageType =
   | 'agent:register'
   | 'agent:registered'
   | 'agent:status'
@@ -70,6 +70,7 @@ export interface AgentStatusMessage extends WSMessage {
 export interface CommandRecordMessage extends WSMessage {
   type: 'command:record';
   testId: string;
+  testName: string;
   url: string;
   browser: BrowserType;
 }

@@ -96,3 +96,7 @@ After update, verify:
 
 **That's it!** If all steps complete successfully, your EC2 instance is updated and ready. 🎉
 
+
+
+
+

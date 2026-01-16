@@ -26,7 +26,7 @@ async function getUniqueTestFolder(storagePath: string, testName: string, testId
   const sanitizedName = sanitizeFileName(testName);
   let folderName = sanitizedName;
   let counter = 1;
-  
+
   // Check if folder exists, if so, append counter
   while (fs.existsSync(path.join(storagePath, 'tests', folderName))) {
     // Check if it's the same test (by checking if testId matches in a metadata file or DB)
@@ -35,7 +35,7 @@ async function getUniqueTestFolder(storagePath: string, testName: string, testId
     folderName = `${sanitizedName}-${counter}`;
     counter++;
   }
-  
+
   return folderName;
 }
 
@@ -153,6 +153,7 @@ export function setupTestRoutes(router: Router, storagePath: string) {
         broadcastToAgents({
           type: 'command:record',
           testId,
+          testName: name, // Send test name to agent
           url,
           browser
         });
@@ -301,7 +302,7 @@ export function setupTestRoutes(router: Router, storagePath: string) {
       // Delete file if exists
       if (test.filePath && fs.existsSync(test.filePath)) {
         fs.unlinkSync(test.filePath);
-        
+
         // Delete test directory (extract from filePath)
         const testDir = path.dirname(test.filePath);
         if (fs.existsSync(testDir)) {

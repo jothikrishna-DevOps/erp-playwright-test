@@ -179,3 +179,9 @@ curl http://localhost:3000
 3. **File location**: Shared types are now in `frontend/src/shared/` instead of project root `shared/`
 4. **Deploy script**: Already updated to copy `shared` to `frontend/src/shared` before building
 
+
+
+
+
+
+

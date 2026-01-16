@@ -5,12 +5,12 @@ import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
 import FormData from 'form-data';
-import { 
-  WSMessage, 
-  CommandRecordMessage, 
-  CommandRunMessage, 
+import {
+  WSMessage,
+  CommandRecordMessage,
+  CommandRunMessage,
   CommandStopMessage,
-  AgentStatusMessage 
+  AgentStatusMessage
 } from '../../shared/types';
 
 const execAsync = promisify(exec);
@@ -141,7 +141,7 @@ export class AgentClient {
   private async handleRecordCommand(message: CommandRecordMessage): Promise<void> {
     // Force Chromium if FORCE_CHROMIUM env var is set (for Docker agent)
     const browser = process.env.FORCE_CHROMIUM === 'true' ? 'chromium' : message.browser;
-    
+
     console.log(`\n🎬 Starting recording for test: ${message.testId}`);
     console.log(`   URL: ${message.url}`);
     if (process.env.FORCE_CHROMIUM === 'true') {
@@ -154,31 +154,34 @@ export class AgentClient {
     this.currentTestId = message.testId;
     this.sendStatus('recording', message.testId, 'Starting recording...');
 
-      let stdout = '';
-      let stderr = '';
+    let stdout = '';
+    let stderr = '';
 
-      try {
-        // Support configurable workspace path for Docker (via WORKSPACE_PATH env var)
-        // Defaults to current working directory for backward compatibility
-        const workspaceRoot = process.env.WORKSPACE_PATH || process.cwd();
-        const testDir = path.join(workspaceRoot, 'temp-tests', message.testId);
-        if (!fs.existsSync(testDir)) {
-          fs.mkdirSync(testDir, { recursive: true });
-        }
+    try {
+      // Support configurable workspace path for Docker (via WORKSPACE_PATH env var)
+      // Defaults to current working directory for backward compatibility
+      const workspaceRoot = process.env.WORKSPACE_PATH || process.cwd();
+      const testDir = path.join(workspaceRoot, 'temp-tests', message.testId);
+      if (!fs.existsSync(testDir)) {
+        fs.mkdirSync(testDir, { recursive: true });
+      }
 
-        const outputFile = path.join(testDir, 'test.spec.ts');
+      // Sanitize test name for filename
+      const sanitizeName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'test';
+      const fileName = `${sanitizeName(message.testName)}.spec.ts`;
+      const outputFile = path.join(testDir, fileName);
 
-        // Run playwright codegen (always visible, headless=false is default for codegen)
-        // Use absolute path and quote it to handle spaces
-        const absoluteOutputFile = path.resolve(outputFile);
-        const command = `npx playwright codegen "${message.url}" --target=typescript --output="${absoluteOutputFile}" --browser=${browser}`;
-        
-        console.log(`📝 Running: ${command}\n`);
-        console.log(`📁 Output file will be: ${absoluteOutputFile}\n`);
-        console.log('🌐 Browser will open on your local machine (visible mode)...');
-        console.log('💡 RECOMMENDED: Interact with the page (click, type, navigate) to record actions');
-        console.log('💡 If you don\'t interact, a minimal test file will be created automatically');
-        console.log('💡 Then close the browser window to finish recording\n');
+      // Run playwright codegen (always visible, headless=false is default for codegen)
+      // Use absolute path and quote it to handle spaces
+      const absoluteOutputFile = path.resolve(outputFile);
+      const command = `npx playwright codegen "${message.url}" --target=typescript --output="${absoluteOutputFile}" --browser=${browser}`;
+
+      console.log(`📝 Running: ${command}\n`);
+      console.log(`📁 Output file will be: ${absoluteOutputFile}\n`);
+      console.log('🌐 Browser will open on your local machine (visible mode)...');
+      console.log('💡 RECOMMENDED: Interact with the page (click, type, navigate) to record actions');
+      console.log('💡 If you don\'t interact, a minimal test file will be created automatically');
+      console.log('💡 Then close the browser window to finish recording\n');
 
       this.currentProcess = exec(command, {
         cwd: process.cwd(),
@@ -237,7 +240,7 @@ export class AgentClient {
           // Create a minimal test file as fallback
           console.log(`\n⚠️  No actions recorded - creating minimal test file...`);
           console.log(`💡 Tip: Next time, interact with the page (click, type, navigate) to record actions`);
-          
+
           const minimalTestContent = `import { test, expect } from '@playwright/test';
 
 test('${message.testId}', async ({ page }) => {
@@ -257,21 +260,21 @@ test('${message.testId}', async ({ page }) => {
             if (!fs.existsSync(testDir)) {
               fs.mkdirSync(testDir, { recursive: true });
             }
-            
+
             // Create the minimal test file
             fs.writeFileSync(absoluteOutputFile, minimalTestContent, 'utf-8');
-            
+
             // Verify file was created
             if (!fs.existsSync(absoluteOutputFile)) {
               throw new Error('File was not created after writeFileSync');
             }
-            
+
             const stats = fs.statSync(absoluteOutputFile);
             console.log(`✅ Created minimal test file: ${absoluteOutputFile}`);
             console.log(`📝 File size: ${stats.size} bytes`);
             console.log(`📝 File contains basic structure - you can edit it later`);
             console.log(`📁 File location: ${absoluteOutputFile}`);
-            
+
             this.sendStatus('idle', message.testId, 'Recording completed (minimal test)');
 
             // Upload test file to backend
@@ -288,7 +291,7 @@ test('${message.testId}', async ({ page }) => {
 
             // Wait a moment before cleanup so user can see the file
             await new Promise(resolve => setTimeout(resolve, 2000));
-            
+
             // Cleanup
             if (fs.existsSync(testDir)) {
               fs.rmSync(testDir, { recursive: true, force: true });
@@ -341,7 +344,7 @@ test('${message.testId}', async ({ page }) => {
 
       // Run the test
       const headless = message.mode === 'headless';
-      const command = headless 
+      const command = headless
         ? `npx playwright test ${testFile}`
         : `npx playwright test ${testFile} --headed`;
 

@@ -7,8 +7,9 @@ services:
       dockerfile: agent/Dockerfile
     container_name: playwright-agent-docker
     platform: linux/amd64
+    ipc: host # Enable host shared memory (fixes browser flickering)
     restart: unless-stopped
-    
+
     # Environment variables
     # These should be set in a .env file or overridden when running docker-compose
     environment:
@@ -18,21 +19,26 @@ services:
       - AGENT_CONFIG_PATH=/config/agent-config.json
       - FORCE_CHROMIUM=true
       - DOCKER=true
-    
+      - LIBGL_ALWAYS_SOFTWARE=1 # Force software rendering (fixes flickering)
+      - _X11_NO_MITSHM=1 # Fix for blank windows in X11 forwarding
+      - PLAYWRIGHT_CHROMIUM_ARGS=--disable-gpu --disable-dev-shm-usage --disable-software-rasterizer
+
+    security_opt:
+      - seccomp:unconfined # Allow Chrome sandbox to work properly
+
     # Volume mounts
     # Mount workspace for test files (saved on host)
     volumes:
       - ${HOST_WORKSPACE_PATH:-./workspace}:/workspace
       # Mount config directory for agent-config.json persistence
       - ${HOST_CONFIG_PATH:-./config}:/config
-    
+
     # No ports exposed - agent makes outbound connections only
     # Docker Desktop handles GUI forwarding automatically on Mac/Windows
-    
+
     # Logs
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-

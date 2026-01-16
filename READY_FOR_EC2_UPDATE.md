@@ -144,3 +144,7 @@ cd .. && bash deploy/deploy.sh
 
 **Everything is ready! Just push to git and update EC2.** 🚀
 
+
+
+
+

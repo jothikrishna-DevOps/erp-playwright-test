@@ -112,8 +112,8 @@ else
     BACKEND_URL=${BACKEND_URL:-http://ec2-13-235-76-91.ap-south-1.compute.amazonaws.com}
     WS_URL=${WS_URL:-ws://ec2-13-235-76-91.ap-south-1.compute.amazonaws.com}
 
-    echo -e "${GREEN}📦 Building Docker image...${NC}"
-    docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/Dockerfile" "$PARENT_DIR"
+    echo -e "${GREEN}📦 Building Docker image (clean build)...${NC}"
+    docker build --no-cache -t "$IMAGE_NAME" -f "$SCRIPT_DIR/Dockerfile" "$PARENT_DIR"
 
     echo -e "\n${GREEN}🚀 Starting Docker container...${NC}"
     echo -e "${YELLOW}   Workspace: $HOST_WORKSPACE_PATH${NC}"
@@ -154,6 +154,8 @@ else
     docker run -d \
         --name "$CONTAINER_NAME" \
         --platform linux/amd64 \
+        --net=host \
+        --ipc=host \
         --restart unless-stopped \
         -e BACKEND_URL="$BACKEND_URL" \
         -e WS_URL="$WS_URL" \
@@ -161,6 +163,12 @@ else
         -e AGENT_CONFIG_PATH=/config/agent-config.json \
         -e FORCE_CHROMIUM=true \
         -e DOCKER=true \
+        -e LIBGL_ALWAYS_SOFTWARE=1 \
+        -e _X11_NO_MITSHM=1 \
+        -e QT_X11_NO_MITSHM=1 \
+        -e NO_AT_BRIDGE=1 \
+        -e PLAYWRIGHT_CHROMIUM_ARGS="--disable-gpu --disable-dev-shm-usage --disable-software-rasterizer --no-sandbox" \
+        --security-opt seccomp=unconfined \
         $X11_ARGS \
         -v "$HOST_WORKSPACE_PATH:/workspace" \
         -v "$HOST_CONFIG_PATH:/config" \
