@@ -159,9 +159,8 @@ else
         --restart unless-stopped \
         -e BACKEND_URL="$BACKEND_URL" \
         -e WS_URL="$WS_URL" \
-        -e WORKSPACE_PATH=/workspace \
-        -e AGENT_CONFIG_PATH=/config/agent-config.json \
-        -e FORCE_CHROMIUM=true \
+        -e WORKSPACE_PATH="/workspace" \
+        -e AGENT_CONFIG_PATH="/config/agent-config.json" \
         -e DOCKER=true \
         -e LIBGL_ALWAYS_SOFTWARE=1 \
         -e _X11_NO_MITSHM=1 \

@@ -14,7 +14,8 @@ COPY agent/tsconfig.json ./
 # Install dependencies (including devDependencies for build)
 RUN npm ci
 
-# Copy agent source code (will be at /app/src)
+# Force rebuild of source code (Cache Buster)
+ENV FORCE_REBUILD=2026-01-17-14-50
 COPY agent/src ./src
 
 # Copy shared types to ../shared (relative to /app)

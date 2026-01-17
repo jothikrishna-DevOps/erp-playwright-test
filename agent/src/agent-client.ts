@@ -167,14 +167,31 @@ export class AgentClient {
       }
 
       // Sanitize test name for filename
-      const sanitizeName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'test';
+      // Handle case where testName might be undefined (backward compatibility)
+      const sanitizeName = (name: string) => (name || 'test').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'test';
       const fileName = `${sanitizeName(message.testName)}.spec.ts`;
       const outputFile = path.join(testDir, fileName);
 
       // Run playwright codegen (always visible, headless=false is default for codegen)
       // Use absolute path and quote it to handle spaces
       const absoluteOutputFile = path.resolve(outputFile);
-      const command = `npx playwright codegen "${message.url}" --target=typescript --output="${absoluteOutputFile}" --browser=${browser}`;
+      // Remove --output flag to capture to stdout instead
+      // Use a temporary file for recording output to avoid stdout buffering issues in Docker
+      const tempOutputFile = '/tmp/temp-record.ts';
+
+      // Clean up any existing temp file
+      if (fs.existsSync(tempOutputFile)) {
+        try {
+          fs.unlinkSync(tempOutputFile);
+        } catch (e) {
+          console.warn('Failed to clean up old temp file:', e);
+        }
+      }
+
+      // Run playwright codegen
+      // We use the temp file approach because capturing stdout directly can be unreliable
+      // in non-interactive Docker environments
+      const command = `npx playwright codegen "${message.url}" --target=playwright-test --browser=${browser} --output=${tempOutputFile}`;
 
       console.log(`📝 Running: ${command}\n`);
       console.log(`📁 Output file will be: ${absoluteOutputFile}\n`);
@@ -190,8 +207,8 @@ export class AgentClient {
 
       this.currentProcess.stdout?.on('data', (data: string) => {
         const output = data.toString();
-        stdout += output;
-        console.log(output);
+        // Log output but don't rely on it for the file content
+        console.log(`[CODEGEN]: ${output}`);
       });
 
       this.currentProcess.stderr?.on('data', (data: string) => {
@@ -203,13 +220,37 @@ export class AgentClient {
       this.currentProcess.on('close', async (code: number) => {
         this.currentProcess = null;
 
+        // Read the recorded content from the temp file
+        if (fs.existsSync(tempOutputFile)) {
+          try {
+            const fileContent = fs.readFileSync(tempOutputFile, 'utf-8');
+            if (fileContent && fileContent.trim().length > 0) {
+              stdout = fileContent;
+              console.log(`✅ Captured ${stdout.length} bytes of code from temp file`);
+            }
+            // Clean up
+            fs.unlinkSync(tempOutputFile);
+          } catch (err) {
+            console.error('❌ Failed to read temp recording file:', err);
+          }
+        }
+
+        // Write captured content to the final destination
+        if (stdout && stdout.trim().length > 0) {
+          try {
+            fs.writeFileSync(absoluteOutputFile, stdout);
+          } catch (err) {
+            console.error('❌ Failed to write stdout to file:', err);
+          }
+        }
+
         // Wait a bit for file to be written (codegen might exit before file is fully written)
         await new Promise(resolve => setTimeout(resolve, 1000));
 
         // Check if file exists (regardless of exit code)
-        // Sometimes codegen exits with 0 even if no file was created
+        // sometimes codegen exits with 0 even if no file was created
         // Use absolute path for checking
-        const absoluteOutputFile = path.resolve(outputFile);
+        // absoluteOutputFile is already defined in outer scope
         if (fs.existsSync(absoluteOutputFile)) {
           const stats = fs.statSync(absoluteOutputFile);
           if (stats.size > 0) {
